@@ -1,0 +1,126 @@
+#https://www.kaggle.com/competitions/titanic
+#Titanic competition
+import pandas as pd
+import numpy as np
+import math as mt
+from sklearn.preprocessing import LabelEncoder
+from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import train_test_split, cross_val_score, GridSearchCV, KFold
+from sklearn.metrics import roc_auc_score, r2_score, accuracy_score
+from sklearn.ensemble import GradientBoostingClassifier
+from scipy import stats
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+df_train = pd.read_csv('../input/titanic/train.csv')
+df_train = df_train.set_index('PassengerId')
+df_test = pd.read_csv('../input/titanic/test.csv')
+df_test = df_test.set_index('PassengerId')
+del df_train['Name']; del df_test['Name']
+
+y_train = df_train['Survived']
+x_train = df_train.loc[:, ['Age', 'Sex', 'Pclass', 'Fare', 'Embarked', 'SibSp', 'Parch']]
+x_test = df_test.loc[:, ['Age', 'Sex', 'Pclass', 'Fare', 'Embarked', 'SibSp', 'Parch']]
+#cat_train = df_train[['sex', 'ticket']]
+x_train['Sex'] = x_train['Sex'].astype('category').cat.codes
+x_test['Sex'] = x_test['Sex'].astype('category').cat.codes
+label_encoder = LabelEncoder()
+x_train['Embarked'] = label_encoder.fit_transform(x_train['Embarked'])
+x_test['Embarked'] = x_test['Embarked'].astype('category').cat.codes
+
+print(x_test.isnull().sum())
+ax = x_train["Age"].hist(bins=15, color='teal', alpha=0.8)
+ax.set(xlabel='Age', ylabel='Count')
+plt.show()
+x_test['Age'].fillna(27, inplace=True)
+x_train['Age'].fillna(28, inplace=True)
+x_test['Fare'].loc[x_test['Fare'].isna()] = pd.Series(x_test['Fare'].value_counts())[0]
+print(x_test.isnull().sum())
+
+sns.countplot(x='Embarked',data=x_train,palette='Set1')
+plt.show()
+x_train['Embarked'].fillna(2, inplace=True)
+
+x_train['TravelBuds'] = x_train['SibSp'] + x_train['Parch']
+x_train['TravelAlone'] = np.where(x_train['TravelBuds'], 0, 1)
+x_train.drop('SibSp', axis=1, inplace=True)
+x_train.drop('Parch', axis=1, inplace=True)
+x_train.drop('TravelBuds', axis=1, inplace=True)
+
+x_test['TravelBuds'] = x_test['SibSp'] + x_test['Parch']
+x_test['TravelAlone'] = np.where(x_test['TravelBuds'], 0, 1)
+x_test.drop('SibSp', axis=1, inplace=True)
+x_test.drop('Parch', axis=1, inplace=True)
+x_test.drop('TravelBuds', axis=1, inplace=True)
+
+x_train['Age'].loc[x_train['Age'] < 1] = x_train['Age'] * 100
+x_train['Age'] = x_train['Age'].astype('int')
+x_test['Age'].loc[x_test['Age'] < 1] = x_test['Age'] * 100
+x_test['Age'] = x_test['Age'].astype('int')
+
+plt.figure(figsize=(15, 8))
+sns.kdeplot(x_train['Age'][df_train.Survived == 1], color='darkturquoise', shade=True)
+sns.kdeplot(x_train['Age'][df_train.Survived == 0], color='lightcoral', shade=True)
+plt.legend(['Survived', 'Died'])
+plt.title('Density Plot of Age for Surviving Population and Deceased Population')
+plt.show()
+
+model = LogisticRegression(random_state=0).fit(x_train, y_train)
+print(model.score(x_train, y_train))
+prob_train = model.predict_proba(x_train)[:, 1]
+print('ROC-AUC:', roc_auc_score(y_train, prob_train))
+#print(sklearn.metrics.SCORERS.keys())
+cross_val_scores = cross_val_score(model, x_train, y_train, cv=5, scoring='f1')
+print('Cross validation:', cross_val_scores)
+cross_val_scores = cross_val_score(model, x_train, y_train, cv=5, scoring='r2')
+print('Cross validation:', cross_val_scores)
+cross_val_scores = cross_val_score(model, x_train, y_train, cv=5, scoring='roc_auc')
+print('Cross validation:', cross_val_scores, '\n')
+y_test = model.predict(x_test)
+#prob_train
+
+train_x, test_x, train_y, test_y = train_test_split(x_train, y_train, random_state=0, train_size=0.7)
+model = KNeighborsClassifier(n_neighbors=5).fit(x_train, y_train)
+print(model.score(x_train, y_train))
+prob_train = model.predict_proba(x_train)[:, 1]
+print('ROC-AUC:', roc_auc_score(y_train, prob_train))
+pred_y = model.predict(test_x)
+cross_val_scores = cross_val_score(model, x_train, y_train, cv=5, scoring='f1')
+print('Cross validation:', cross_val_scores)
+cross_val_scores = cross_val_score(model, x_train, y_train, cv=5, scoring='r2')
+print('Cross validation:', cross_val_scores)
+cross_val_scores = cross_val_score(model, x_train, y_train, cv=5, scoring='roc_auc')
+print('Cross validation:', cross_val_scores, '\n')
+
+model = GradientBoostingClassifier().fit(x_train, y_train)
+print(model.score(x_train, y_train))
+prob_train = model.predict_proba(x_train)[:, 1]
+print('ROC-AUC:', roc_auc_score(y_train, prob_train))
+pred_y = model.predict(test_x)
+cross_val_scores = cross_val_score(model, x_train, y_train, cv=5, scoring='f1')
+print('Cross validation:', cross_val_scores)
+cross_val_scores = cross_val_score(model, x_train, y_train, cv=5, scoring='r2')
+print('Cross validation:', cross_val_scores)
+cross_val_scores = cross_val_score(model, x_train, y_train, cv=5, scoring='roc_auc')
+print('Cross validation:', cross_val_scores, '\n')
+
+model = GradientBoostingClassifier()
+kfold = KFold(n_splits=10, shuffle=True, random_state=12)
+param_grid = {
+    'max_depth': [2, 4],
+    'n_estimators': [50, 100, 500],
+    'learning_rate': [0.01, 0.1, 0.5],
+    'subsample': [0.8, 1]
+}
+CV_model = GridSearchCV(estimator=model, param_grid=param_grid,
+                       scoring='roc_auc', cv=kfold, verbose=1000).fit(x_train, y_train)
+print(CV_model.best_params_)
+y_test = CV_model.predict(x_test)
+cross_val_scores = cross_val_score(CV_model, x_train, y_train, cv=5, scoring='f1')
+print('Cross validation (F1):', cross_val_scores)
+cross_val_scores = cross_val_score(CV_model, x_train, y_train, cv=5, scoring='r2')
+print('Cross validation (R2):', cross_val_scores)
+cross_val_scores = cross_val_score(CV_model, x_train, y_train, cv=5, scoring='roc_auc')
+print('Cross validation (ROC-AUC):', cross_val_scores, '\n')
